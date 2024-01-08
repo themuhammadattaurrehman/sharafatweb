@@ -6,30 +6,43 @@ $error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Get user inputs
-   
-
-    // Replace this with your actual authentication logic
-    // Get user inputs
     $username = $_POST['email'];
     $password = $_POST['password'];
 
-    // Escape user inputs to prevent SQL injection
-
     // Use prepared statements to prevent SQL injection
-    $sql = "SELECT id, name,email,password FROM salesman WHERE email = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $username);
-    $stmt->execute();
-    $stmt->bind_result($id, $name, $dbemail, $dbpassword);
+    $sql = "SELECT id, name, email, password, 'admin' as role FROM admin WHERE email = :email
+            UNION
+            SELECT id, name, email, password, 'salesman' as role FROM salesman WHERE email = :email
+            UNION
+            SELECT id, name, email, password, 'cashier' as role FROM cashier WHERE email = :email
+            UNION
+            SELECT id, name, email, password, 'manager' as role FROM manager WHERE email = :email
+            ";
 
-    if ($stmt->fetch()) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bindParam(':email', $username, PDO::PARAM_STR);
+    $stmt->execute();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($user) {
         // Verify the password
-        if ($dbemail == $username && $dbpassword == $password) {
+        if ($username==$user['email']&&$password == $user['password']) {
             // Authentication successful
             $_SESSION["loggedin"] = true;
-            $_SESSION["name"] = $name;
-            $_SESSION['id'] = $id; // Set a session variable to indicate the user is logged in
-            header("Location: notesadd.php"); // Redirect to the dashboard
+            $_SESSION["name"] = $user['name'];
+            $_SESSION['id'] = $user['id'];
+            $_SESSION['role'] = $user['role']; // Set the user role in the session
+
+            // Redirect based on user role
+            if ($user['role'] == 'admin') {
+                header("Location: admin_dashboard.php");
+            }elseif($user['role'] == 'cashier') {
+                header("Location: cashier_dashboard.php");
+            }elseif($user['role'] == 'manager') {
+                header("Location: manager_dashboard.php");
+            }else {
+                header("Location: notesadd.php");
+            }
             exit();
         } else {
             $error_message = "Invalid username or password";
@@ -39,10 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Close the connection
-    $stmt->close();
-    $conn->close();
+    $stmt = null;
+    $conn = null;
+
+    // Display error message if authentication fails
+    echo $error_message;
 }
+
 ?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 
